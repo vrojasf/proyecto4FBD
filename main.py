@@ -165,3 +165,77 @@ def rfc3_comparativo(ciudad: str):
     ]
     resultado = list(db["reseñas"].aggregate(pipeline))
     return resultado
+
+@app.post("/hoteles/{hotel_id}/resenas")
+def post_resena(hotel_id: str, datos: dict):
+    existe = db["resenas"].find_one({
+        "reserva_id": datos.get("reserva_id")
+    })
+    if existe:
+        return {"error": "Ya existe una reseña para esta reserva"}
+    
+    datos["hotel_id"] = hotel_id
+    datos["fecha"] = datetime.now().isoformat()
+    datos["visible"] = True
+    datos["destacada"] = False
+    datos["votos_utilidad"] = 0
+    db["resenas"].insert_one(datos)
+    datos.pop("_id", None)
+    return {"mensaje": "Reseña guardada"}
+
+@app.get("/hoteles/{hotel_id}/resenas")
+def get_resenas(hotel_id: str):
+    resenas = list(db["resenas"].find({"hotel_id": hotel_id}, {"_id": 0}))
+    return resenas
+
+@app.put("/hoteles/{hotel_id}/resenas/{resena_id}")
+def put_resena(hotel_id: str, resena_id: str, datos: dict):
+    db["resenas"].update_one(
+        {"reserva_id": resena_id},
+        {"$set": {"calificacion": datos["calificacion"], "comentario": datos["comentario"]}}
+    )
+    return {"mensaje": "Reseña actualizada"}
+
+@app.delete("/hoteles/{hotel_id}/resenas/{resena_id}")
+def delete_resena(hotel_id: str, resena_id: str):
+    db["resenas"].delete_one({"reserva_id": resena_id})
+    return {"mensaje": "Reseña eliminada"}
+
+@app.put("/hoteles/{hotel_id}/resenas/{resena_id}/util")
+def votar_util_resena(hotel_id: str, resena_id: str):
+    db["resenas"].update_one(
+        {"reserva_id": resena_id},
+        {"$inc": {"votos_utilidad": 1}}
+    )
+    return {"mensaje": "Voto registrado"}
+
+@app.put("/hoteles/{hotel_id}/resenas/{resena_id}/responder")
+def responder_resena(hotel_id: str, resena_id: str, datos: dict):
+    db["resenas"].update_one(
+        {"reserva_id": resena_id},
+        {"$set": {"respuesta": {
+            "administrador_id": datos["administrador_id"],
+            "mensaje": datos["mensaje"],
+            "fecha": datetime.now().isoformat()
+        }}}
+    )
+    return {"mensaje": "Respuesta guardada"}
+
+@app.put("/hoteles/{hotel_id}/resenas/{resena_id}/destacar")
+def destacar_resena(hotel_id: str, resena_id: str):
+    db["resenas"].update_many({"hotel_id": hotel_id}, {"$set": {"destacada": False}})
+    db["resenas"].update_one({"reserva_id": resena_id}, {"$set": {"destacada": True}})
+    return {"mensaje": "Reseña destacada"}
+
+@app.put("/hoteles/{hotel_id}/resenas/{resena_id}/moderar")
+def moderar_resena(hotel_id: str, resena_id: str, datos: dict):
+    db["resenas"].update_one(
+        {"reserva_id": resena_id},
+        {"$set": {"visible": datos["visible"]}}
+    )
+    return {"mensaje": "Reseña moderada"}
+
+@app.get("/clientes/{cliente_id}/resenas")
+def get_resenas_cliente(cliente_id: str):
+    resenas = list(db["resenas"].find({"cliente_id": cliente_id}, {"_id": 0}))
+    return resenas
