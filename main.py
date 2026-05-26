@@ -114,3 +114,54 @@ def rfc1_top_hoteles():
     ]
     resultado = list(db["reseñas"].aggregate(pipeline))
     return resultado
+
+@app.get("/rfc2/evolucion/{hotel_id}/{anio}")
+def rfc2_evolucion(hotel_id: str, anio: int):
+    pipeline = [
+        {"$match": {
+            "hotel_id": hotel_id,
+            "fecha": {"$regex": f"^{anio}"}
+        }},
+        {"$group": {
+            "_id": {"$substr": ["$fecha", 0, 7]},
+            "calificacionPromedio": {"$avg": "$calificacion"},
+            "totalReseñas": {"$sum": 1}
+        }},
+        {"$sort": {"_id": 1}},
+        {"$project": {
+            "mes": "$_id",
+            "calificacionPromedio": 1,
+            "totalReseñas": 1
+        }}
+    ]
+    resultado = list(db["reseñas"].aggregate(pipeline))
+    return resultado
+
+@app.get("/rfc3/comparativo/{ciudad}")
+def rfc3_comparativo(ciudad: str):
+    pipeline = [
+        {"$lookup": {
+            "from": "hoteles",
+            "localField": "hotel_id",
+            "foreignField": "_id",
+            "as": "hotel"
+        }},
+        {"$match": {"hotel.ciudad": ciudad}},
+        {"$group": {
+            "_id": "$hotel_id",
+            "calificacionPromedio": {"$avg": "$calificacion"},
+            "totalReseñas": {"$sum": 1},
+            "conRespuesta": {"$sum": {"$cond": [{"$ifNull": ["$respuesta", False]}, 1, 0]}},
+            "destacadas": {"$sum": {"$cond": ["$destacada", 1, 0]}},
+            "nombreHotel": {"$first": {"$arrayElemAt": ["$hotel.nombre", 0]}}
+        }},
+        {"$project": {
+            "nombreHotel": 1,
+            "calificacionPromedio": 1,
+            "totalReseñas": 1,
+            "pctConRespuesta": {"$multiply": [{"$divide": ["$conRespuesta", "$totalReseñas"]}, 100]},
+            "pctDestacadas": {"$multiply": [{"$divide": ["$destacadas", "$totalReseñas"]}, 100]}
+        }}
+    ]
+    resultado = list(db["reseñas"].aggregate(pipeline))
+    return resultado
