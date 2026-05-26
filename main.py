@@ -78,6 +78,8 @@ def moderar_reseña(hotel_id: str, reseña_id: str, datos: dict):
     )
     return {"mensaje": "Reseña moderada"}
 
+
+
 @app.put("/hoteles/{hotel_id}/reseñas/{reseña_id}/util")
 def votar_util(hotel_id: str, reseña_id: str):
     db["reseñas"].update_one(
@@ -85,3 +87,30 @@ def votar_util(hotel_id: str, reseña_id: str):
         {"$inc": {"votos_utilidad": 1}}
     )
     return {"mensaje": "Voto registrado"}
+
+
+@app.get("/rfc1/top-hoteles")
+def rfc1_top_hoteles():
+    pipeline = [
+        {"$group": {
+            "_id": "$hotel_id",
+            "calificacionPromedio": {"$avg": "$calificacion"},
+            "totalReseñas": {"$sum": 1}
+        }},
+        {"$sort": {"calificacionPromedio": -1}},
+        {"$limit": 10},
+        {"$lookup": {
+            "from": "hoteles",
+            "localField": "_id",
+            "foreignField": "_id",
+            "as": "hotel"
+        }},
+        {"$project": {
+            "nombreHotel": {"$arrayElemAt": ["$hotel.nombre", 0]},
+            "ciudad": {"$arrayElemAt": ["$hotel.ciudad", 0]},
+            "calificacionPromedio": 1,
+            "totalReseñas": 1
+        }}
+    ]
+    resultado = list(db["reseñas"].aggregate(pipeline))
+    return resultado
